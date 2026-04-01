@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bump Analytics</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg:       #313338;
+    --surface:  #1e1f22;
+    --card:     #2b2d31;
+    --card2:    #383a40;
+    --border:   rgba(255,255,255,0.06);
+    --blurple:  #5865f2;
+    --blurple2: #4752c4;
+    --green:    #23a55a;
+    --red:      #f23f43;
+    --yellow:   #f0b232;
+    --fuchsia:  #eb459e;
+    --text:     #dbdee1;
+    --muted:    #949ba4;
+    --hint:     #6d6f78;
+    --white:    #ffffff;
+    --font: 'gg sans','Noto Sans','Helvetica Neue',Helvetica,Arial,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;line-height:1.5;min-height:100vh;}
+
+  /* UPLOAD */
+  #upload-screen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem 1rem;background:var(--surface);}
+  .up-logo{display:flex;align-items:center;gap:12px;margin-bottom:6px;}
+  .up-logo svg{width:38px;height:38px;fill:var(--blurple);}
+  #upload-screen h1{font-size:clamp(1.5rem,4vw,2.2rem);font-weight:700;color:var(--white);}
+  .up-sub{color:var(--muted);font-size:0.9rem;margin-top:4px;margin-bottom:2rem;}
+  .upload-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;width:100%;max-width:640px;margin-bottom:1.5rem;}
+  @media(max-width:500px){.upload-grid{grid-template-columns:1fr;}}
+  .drop-zone{border:1.5px dashed rgba(88,101,242,0.45);border-radius:8px;padding:1.5rem 1.25rem;background:rgba(88,101,242,0.05);cursor:pointer;transition:all .15s;text-align:center;}
+  .drop-zone:hover,.drop-zone.drag-over{border-color:var(--blurple);background:rgba(88,101,242,0.1);}
+  .drop-zone .dz-icon{font-size:1.6rem;margin-bottom:8px;display:block;}
+  .drop-zone h3{font-size:0.88rem;font-weight:600;color:var(--white);margin-bottom:3px;}
+  .drop-zone p{font-size:0.76rem;color:var(--muted);}
+  .drop-zone input[type="file"]{display:none;}
+  .drop-zone.loaded{border-color:var(--green);background:rgba(35,165,90,0.07);}
+  .drop-zone.loaded h3{color:var(--green);}
+  .btn-blurple{background:var(--blurple);color:#fff;border:none;border-radius:3px;padding:.65rem 2rem;font-family:var(--font);font-size:.95rem;font-weight:500;cursor:pointer;transition:background .15s;}
+  .btn-blurple:hover{background:var(--blurple2);}
+  .btn-blurple:disabled{opacity:.4;cursor:not-allowed;}
+
+  /* DASHBOARD */
+  #dashboard{display:none;}
+  .topbar{height:48px;background:var(--card);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 1rem;gap:10px;position:sticky;top:0;z-index:100;}
+  .topbar-hash{color:var(--hint);font-size:1.5rem;font-weight:800;line-height:1;}
+  .topbar-title{font-size:1rem;font-weight:700;color:var(--white);}
+  .topbar-sep{width:1px;height:22px;background:var(--border);margin:0 4px;}
+  .topbar-range{font-size:.76rem;color:var(--muted);flex:1;}
+  .btn-ghost{background:none;border:none;color:var(--muted);font-family:var(--font);font-size:.8rem;cursor:pointer;padding:.3rem .7rem;border-radius:3px;}
+  .btn-ghost:hover{background:var(--card2);color:var(--text);}
+
+  main{padding:1.25rem;max-width:1100px;margin:0 auto;}
+
+  .sec-label{font-size:.65rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--hint);margin-bottom:.65rem;margin-top:1.75rem;padding-bottom:.45rem;border-bottom:1px solid var(--border);}
+
+  /* METRICS */
+  .metrics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.6rem;}
+  .mc{background:var(--card);border-radius:8px;padding:.9rem 1rem;border:1px solid var(--border);}
+  .mc.t-blurple{border-top:3px solid var(--blurple);}
+  .mc.t-green  {border-top:3px solid var(--green);}
+  .mc.t-yellow {border-top:3px solid var(--yellow);}
+  .mc.t-fuchsia{border-top:3px solid var(--fuchsia);}
+  .mc.t-red    {border-top:3px solid var(--red);}
+  .mc-label{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.35rem;}
+  .mc-value{font-size:1.75rem;font-weight:700;color:var(--white);line-height:1.1;}
+  .mc-sub{font-size:.68rem;color:var(--hint);margin-top:2px;}
+
+  /* RANKING */
+  .ranking-list{display:flex;flex-direction:column;gap:3px;}
+  .rank-item{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:.7rem .9rem;display:grid;grid-template-columns:2.2rem 1fr auto;align-items:center;gap:.7rem;transition:background .1s;}
+  .rank-item:hover{background:var(--card2);}
+  .rank-pos{font-size:.85rem;font-weight:700;text-align:center;color:var(--hint);}
+  .rank-item:nth-child(1) .rank-pos{color:#f0b232;font-size:1.1rem;}
+  .rank-item:nth-child(2) .rank-pos{color:#b9bbbe;font-size:1.05rem;}
+  .rank-item:nth-child(3) .rank-pos{color:#cd7f32;font-size:1rem;}
+  .rank-info{min-width:0;}
+  .rank-name{font-size:.88rem;font-weight:600;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px;}
+  .rank-bar-wrap{height:3px;background:var(--surface);border-radius:2px;overflow:hidden;}
+  .rank-bar{height:100%;border-radius:2px;background:var(--blurple);}
+  .rank-right{text-align:right;}
+  .rank-count{font-size:.95rem;font-weight:700;color:var(--blurple);}
+  .rank-pct{font-size:.65rem;color:var(--hint);}
+
+  /* CHARTS */
+  .chart-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:1.1rem;}
+  .chart-card h3{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.9rem;}
+  .charts-2col{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;}
+  @media(max-width:620px){.charts-2col{grid-template-columns:1fr;}}
+
+  /* HEATMAP */
+  #heatmap-container{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;}
+  .heatmap-inner{display:inline-flex;align-items:flex-start;}
+  .hm-day-labels{display:flex;flex-direction:column;gap:3px;margin-right:5px;padding-top:18px;}
+  .hm-day-label{font-size:.56rem;color:var(--hint);height:12px;line-height:12px;font-weight:500;white-space:nowrap;}
+  .hm-right{display:flex;flex-direction:column;}
+  .hm-months{display:flex;gap:3px;height:14px;margin-bottom:3px;}
+  .hm-month{font-size:.58rem;color:var(--hint);width:12px;white-space:nowrap;overflow:visible;font-weight:500;}
+  .hm-cols{display:flex;gap:3px;}
+  .hm-col{display:flex;flex-direction:column;gap:3px;}
+  .hm-cell{width:12px;height:12px;border-radius:2px;background:var(--surface);cursor:pointer;transition:transform .1s;flex-shrink:0;}
+  .hm-cell:hover{transform:scale(1.5);z-index:5;position:relative;}
+  .hm-cell[data-l="1"]{background:rgba(88,101,242,.2);}
+  .hm-cell[data-l="2"]{background:rgba(88,101,242,.45);}
+  .hm-cell[data-l="3"]{background:rgba(88,101,242,.72);}
+  .hm-cell[data-l="4"]{background:#5865f2;}
+  .hm-legend{display:flex;align-items:center;gap:4px;margin-top:.55rem;font-size:.6rem;color:var(--hint);}
+  .leg-cell{width:10px;height:10px;border-radius:2px;background:var(--surface);}
+
+  /* PROFILES */
+  .profiles-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:.65rem;}
+  .profile-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:1.1rem;transition:background .1s;}
+  .profile-card:hover{background:var(--card2);}
+  .profile-header{display:flex;align-items:center;gap:11px;margin-bottom:.85rem;}
+  .dc-avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.82rem;font-weight:700;flex-shrink:0;}
+  .c0{background:#5865f2;color:#dee0fc;} .c1{background:#23a55a;color:#c3f2d8;}
+  .c2{background:#eb459e;color:#fcd4eb;} .c3{background:#f0b232;color:#fff3d4;}
+  .c4{background:#f23f43;color:#fdd8d9;} .c5{background:#3ba55c;color:#caf0d9;}
+  .c6{background:#9b59b6;color:#e8d5f7;} .c7{background:#1abc9c;color:#c2f5ea;}
+  .c8{background:#e67e22;color:#fde3c5;} .c9{background:#e91e63;color:#fcd4e4;}
+  .profile-name{font-size:.9rem;font-weight:600;color:var(--white);}
+  .profile-sub{font-size:.7rem;color:var(--muted);margin-top:1px;}
+  .profile-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:.8rem;}
+  .pstat{background:var(--surface);border-radius:4px;padding:.45rem .4rem;text-align:center;}
+  .pstat .pv{font-size:.95rem;font-weight:700;color:var(--white);display:block;line-height:1.2;}
+  .pstat .pk{font-size:.55rem;color:var(--hint);text-transform:uppercase;letter-spacing:.05em;}
+  .ph-label{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--hint);margin-bottom:.35rem;}
+  .hours-bars{display:flex;align-items:flex-end;gap:2px;height:30px;margin-bottom:.65rem;}
+  .h-bar{flex:1;border-radius:1px 1px 0 0;min-height:2px;cursor:pointer;}
+  .day-pills{display:flex;gap:3px;}
+  .day-pill{flex:1;text-align:center;font-size:.52rem;font-weight:700;padding:.2rem 0;border-radius:3px;background:var(--surface);color:var(--hint);}
+  .day-pill.active{background:rgba(88,101,242,.2);color:#8891f5;}
+  .day-pill.peak{background:var(--blurple);color:#fff;}
+
+  /* GEN STATS */
+  .gen-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:.65rem;}
+  .gen-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:.9rem 1rem;}
+  .gen-card h4{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--hint);margin-bottom:.65rem;padding-bottom:.4rem;border-bottom:1px solid var(--border);}
+  .stat-row{display:flex;justify-content:space-between;align-items:center;padding:.28rem 0;border-bottom:1px solid rgba(255,255,255,.03);font-size:.8rem;}
+  .stat-row:last-child{border-bottom:none;}
+  .sk{color:var(--muted);}
+  .sv{font-weight:600;color:var(--white);font-size:.78rem;}
+  .sv.g{color:var(--green);} .sv.w{color:var(--yellow);} .sv.r{color:var(--red);}
+
+  /* TOOLTIP */
+  .tooltip-box{position:fixed;background:var(--surface);border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:5px 10px;font-size:.7rem;pointer-events:none;z-index:9999;white-space:nowrap;opacity:0;transition:opacity .1s;color:var(--text);font-weight:500;}
+
+  @media(max-width:480px){
+    main{padding:.85rem;}
+    .metrics-grid{grid-template-columns:1fr 1fr;}
+    .mc-value{font-size:1.4rem;}
+  }
+</style>
+</head>
+<body>
+
+<div id="upload-screen">
+  <div class="up-logo">
+    <svg viewBox="0 0 71 55" xmlns="http://www.w3.org/2000/svg"><path d="M60.1 4.9A58.5 58.5 0 0 0 45.5.7a40.8 40.8 0 0 0-1.8 3.7 54.1 54.1 0 0 0-16.3 0A41.4 41.4 0 0 0 25.6.7 58.4 58.4 0 0 0 11 4.9C1.6 19 -.9 32.7.3 46.2a58.9 58.9 0 0 0 18 9.1 44.6 44.6 0 0 0 3.8-6.3 38.3 38.3 0 0 1-6-2.9l1.5-1.2a42 42 0 0 0 36 0l1.5 1.2a38.3 38.3 0 0 1-6 2.9 44.4 44.4 0 0 0 3.8 6.3 58.7 58.7 0 0 0 18-9.1C71.7 30.6 67.6 17 60.1 4.9ZM23.8 38.2c-3.5 0-6.4-3.2-6.4-7.2s2.8-7.2 6.4-7.2c3.5 0 6.3 3.2 6.3 7.2s-2.8 7.2-6.3 7.2Zm23.4 0c-3.5 0-6.4-3.2-6.4-7.2s2.8-7.2 6.4-7.2c3.5 0 6.3 3.2 6.3 7.2s-2.8 7.2-6.3 7.2Z"/></svg>
+    <h1>Bump Analytics</h1>
+  </div>
+  <p class="up-sub">Importe os JSONs para gerar o dashboard do servidor</p>
+  <div class="upload-grid">
+    <label class="drop-zone" id="zone1" for="file1">
+      <span class="dz-icon">📦</span>
+      <h3 id="z1-title">JSON 1 (Checkpoint)</h3>
+      <p>Arraste ou clique para importar</p>
+      <input type="file" id="file1" accept=".json">
+    </label>
+    <label class="drop-zone" id="zone2" for="file2">
+      <span class="dz-icon">📦</span>
+      <h3 id="z2-title">JSON 2 (Final)</h3>
+      <p>Arraste ou clique para importar</p>
+      <input type="file" id="file2" accept=".json">
+    </label>
+  </div>
+  <button class="btn-blurple" id="go-btn" disabled onclick="buildDashboard()">Gerar Dashboard</button>
+</div>
+
+<div id="dashboard">
+  <div class="topbar">
+    <span class="topbar-hash">#</span>
+    <span class="topbar-title">bump-analytics</span>
+    <div class="topbar-sep"></div>
+    <span class="topbar-range" id="header-range"></span>
+    <button class="btn-ghost" onclick="resetDashboard()">← Voltar</button>
+  </div>
+  <main>
+    <div class="sec-label">Visão Geral</div>
+    <div class="metrics-grid" id="metrics"></div>
+
+    <div class="sec-label">Ranking</div>
+    <div class="ranking-list" id="ranking"></div>
+
+    <div class="sec-label">Atividade</div>
+    <div class="charts-2col">
+      <div class="chart-card">
+        <h3>Bumps por hora do dia</h3>
+        <div style="position:relative;height:170px;"><canvas id="chartHours"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Bumps por dia da semana</h3>
+        <div style="position:relative;height:170px;"><canvas id="chartDays"></canvas></div>
+      </div>
+    </div>
+
+    <div class="sec-label">Histórico — Mapa de Calor</div>
+    <div class="chart-card">
+      <h3>Bumps por dia</h3>
+      <div id="heatmap-container">
+        <div class="heatmap-inner">
+          <div class="hm-day-labels">
+            <div class="hm-day-label" style="visibility:hidden">x</div>
+            <div class="hm-day-label">Dom</div>
+            <div class="hm-day-label" style="visibility:hidden">x</div>
+            <div class="hm-day-label">Ter</div>
+            <div class="hm-day-label" style="visibility:hidden">x</div>
+            <div class="hm-day-label">Qui</div>
+            <div class="hm-day-label" style="visibility:hidden">x</div>
+          </div>
+          <div class="hm-right">
+            <div class="hm-months" id="heatmap-months"></div>
+            <div class="hm-cols" id="heatmap"></div>
+            <div class="hm-legend">
+              <span>Menos</span>
+              <span class="leg-cell"></span>
+              <span class="leg-cell" style="background:rgba(88,101,242,.2)"></span>
+              <span class="leg-cell" style="background:rgba(88,101,242,.45)"></span>
+              <span class="leg-cell" style="background:rgba(88,101,242,.72)"></span>
+              <span class="leg-cell" style="background:#5865f2"></span>
+              <span>Mais</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec-label">Volume Diário</div>
+    <div class="chart-card">
+      <h3>Bumps ao longo do tempo</h3>
+      <div style="position:relative;height:170px;"><canvas id="chartTimeline"></canvas></div>
+    </div>
+
+    <div class="sec-label">Perfil por Usuário</div>
+    <div class="profiles-grid" id="profiles"></div>
+
+    <div class="sec-label">Estatísticas Gerais</div>
+    <div class="gen-grid" id="gen-stats"></div>
+    <div style="height:2rem;"></div>
+  </main>
+</div>
+
+<div class="tooltip-box" id="tooltip"></div>
+
+<script>
+const AVATAR_CLS = ['c0','c1','c2','c3','c4','c5','c6','c7','c8','c9'];
+const ACCENT_HEX = ['#5865f2','#23a55a','#eb459e','#f0b232','#f23f43','#3ba55c','#9b59b6','#1abc9c','#e67e22','#e91e63'];
+const GRD = 'rgba(255,255,255,0.05)';
+const TCK = '#6d6f78';
+let allBumps=[], loadedFiles=[null,null];
+
+function loadFile(idx,file){
+  const r=new FileReader();
+  r.onload=e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      loadedFiles[idx]=data.bumps||[];
+      const zone=document.getElementById('zone'+(idx+1));
+      zone.classList.add('loaded');
+      document.getElementById('z'+(idx+1)+'-title').textContent=`✓ ${loadedFiles[idx].length} bumps`;
+      document.getElementById('go-btn').disabled=false;
+    }catch{alert('Erro ao ler JSON '+(idx+1));}
+  };
+  r.readAsText(file);
+}
+
+['file1','file2'].forEach((id,i)=>{
+  document.getElementById(id).addEventListener('change',e=>{if(e.target.files[0])loadFile(i,e.target.files[0]);});
+});
+['zone1','zone2'].forEach((id,i)=>{
+  const z=document.getElementById(id);
+  z.addEventListener('dragover',e=>{e.preventDefault();z.classList.add('drag-over');});
+  z.addEventListener('dragleave',()=>z.classList.remove('drag-over'));
+  z.addEventListener('drop',e=>{e.preventDefault();z.classList.remove('drag-over');if(e.dataTransfer.files[0])loadFile(i,e.dataTransfer.files[0]);});
+});
+
+function dedup(bumps){
+  const seen=new Set();
+  return bumps.filter(b=>{const k=b.username+'|'+b.datetime;if(seen.has(k))return false;seen.add(k);return true;});
+}
+
+function buildDashboard(){
+  allBumps=dedup([...(loadedFiles[0]||[]),...(loadedFiles[1]||[])]).sort((a,b)=>new Date(a.datetime)-new Date(b.datetime));
+  document.getElementById('upload-screen').style.display='none';
+  document.getElementById('dashboard').style.display='block';
+  renderMetrics(); renderRanking(); renderHourChart(); renderDayChart();
+  renderHeatmap(); renderTimeline(); renderProfiles(); renderGenStats();
+}
+
+function resetDashboard(){
+  allBumps=[]; loadedFiles=[null,null];
+  document.getElementById('upload-screen').style.display='flex';
+  document.getElementById('dashboard').style.display='none';
+  ['zone1','zone2'].forEach(id=>document.getElementById(id).classList.remove('loaded'));
+  document.getElementById('z1-title').textContent='JSON 1 (Checkpoint)';
+  document.getElementById('z2-title').textContent='JSON 2 (Final)';
+  document.getElementById('go-btn').disabled=true;
+  document.getElementById('file1').value='';
+  document.getElementById('file2').value='';
+}
+
+function countByUser(){
+  const m={};
+  allBumps.forEach(b=>{m[b.username]=(m[b.username]||0)+1;});
+  return Object.entries(m).sort((a,b)=>b[1]-a[1]);
+}
+
+function renderMetrics(){
+  const users=countByUser();
+  const dates=[...new Set(allBumps.map(b=>b.datetime.slice(0,10)))];
+  const avg=(allBumps.length/Math.max(dates.length,1)).toFixed(1);
+  const first=allBumps[0]?.datetime?.slice(0,10)||'—';
+  const last=allBumps[allBumps.length-1]?.datetime?.slice(0,10)||'—';
+  document.getElementById('header-range').textContent=first+' → '+last;
+  const cards=[
+    {l:'Total Bumps',v:allBumps.length.toLocaleString(),s:'',t:'t-blurple'},
+    {l:'Usuários',v:users.length,s:'únicos',t:'t-green'},
+    {l:'Dias Ativos',v:dates.length,s:'com bumps',t:'t-yellow'},
+    {l:'Média/dia',v:avg,s:'bumps por dia',t:'t-fuchsia'},
+    {l:'Recordista',v:users[0]?.[0]||'—',s:(users[0]?.[1]||0)+' bumps',t:'t-red',sm:true},
+  ];
+  document.getElementById('metrics').innerHTML=cards.map(c=>`
+    <div class="mc ${c.t}">
+      <div class="mc-label">${c.l}</div>
+      <div class="mc-value" style="${c.sm?'font-size:1rem;padding-top:4px;':''}">${c.v}</div>
+      ${c.s?`<div class="mc-sub">${c.s}</div>`:''}
+    </div>`).join('');
+}
+
+function renderRanking(){
+  const users=countByUser();
+  const max=users[0]?.[1]||1;
+  const medals=['🥇','🥈','🥉'];
+  document.getElementById('ranking').innerHTML=users.map(([name,count],i)=>{
+    const pct=((count/allBumps.length)*100).toFixed(1);
+    const w=((count/max)*100).toFixed(1);
+    return`<div class="rank-item">
+      <div class="rank-pos">${medals[i]||'#'+(i+1)}</div>
+      <div class="rank-info">
+        <div class="rank-name">${name}</div>
+        <div class="rank-bar-wrap"><div class="rank-bar" style="width:${w}%"></div></div>
+      </div>
+      <div class="rank-right"><div class="rank-count">${count}</div><div class="rank-pct">${pct}%</div></div>
+    </div>`;
+  }).join('');
+}
+
+function renderHourChart(){
+  const h=Array(24).fill(0);
+  allBumps.forEach(b=>h[new Date(b.datetime).getHours()]++);
+  new Chart(document.getElementById('chartHours'),{type:'bar',data:{labels:Array.from({length:24},(_,i)=>i+'h'),datasets:[{data:h,backgroundColor:'rgba(88,101,242,.7)',borderRadius:3,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:GRD},ticks:{color:TCK,font:{size:9}},border:{color:'transparent'}},y:{grid:{color:GRD},ticks:{color:TCK,font:{size:9}},border:{color:'transparent'}}}}});
+}
+
+function renderDayChart(){
+  const d=Array(7).fill(0);
+  allBumps.forEach(b=>d[new Date(b.datetime).getDay()]++);
+  new Chart(document.getElementById('chartDays'),{type:'bar',data:{labels:['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'],datasets:[{data:d,backgroundColor:'rgba(235,69,158,.7)',borderRadius:3,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:GRD},ticks:{color:TCK},border:{color:'transparent'}},y:{grid:{color:GRD},ticks:{color:TCK},border:{color:'transparent'}}}}});
+}
+
+function renderHeatmap(){
+  const dc={};
+  allBumps.forEach(b=>{const d=b.datetime.slice(0,10);dc[d]=(dc[d]||0)+1;});
+  if(!allBumps.length)return;
+  const maxV=Math.max(...Object.values(dc));
+  const start=new Date(allBumps[0].datetime.slice(0,10));
+  start.setDate(start.getDate()-start.getDay());
+  const end=new Date(allBumps[allBumps.length-1].datetime.slice(0,10));
+  end.setDate(end.getDate()+(6-end.getDay()));
+  const cols=[],mlMap={};
+  let cur=new Date(start),ci=0;
+  while(cur<=end){
+    const col=[];
+    for(let d=0;d<7;d++){
+      const key=cur.toISOString().slice(0,10);
+      const count=dc[key]||0;
+      const l=count===0?0:count<=(maxV*.25)?1:count<=(maxV*.5)?2:count<=(maxV*.75)?3:4;
+      col.push({key,count,l});
+      if(d===0&&(ci===0||cur.getDate()<=7))mlMap[ci]=cur.toLocaleString('pt-BR',{month:'short'});
+      cur.setDate(cur.getDate()+1);
+    }
+    cols.push(col);ci++;
+  }
+  const tt=document.getElementById('tooltip');
+  document.getElementById('heatmap').innerHTML=cols.map(col=>`<div class="hm-col">${col.map(c=>`<div class="hm-cell" data-l="${c.l}" data-date="${c.key}" data-count="${c.count}"></div>`).join('')}</div>`).join('');
+  document.getElementById('heatmap-months').innerHTML=cols.map((_,i)=>`<div class="hm-month">${mlMap[i]||''}</div>`).join('');
+  document.querySelectorAll('.hm-cell').forEach(cell=>{
+    cell.addEventListener('mouseenter',()=>{tt.textContent=`${cell.dataset.date}: ${cell.dataset.count} bump${cell.dataset.count!=1?'s':''}`;tt.style.opacity='1';});
+    cell.addEventListener('mousemove',e=>{tt.style.left=(e.clientX+14)+'px';tt.style.top=(e.clientY-34)+'px';});
+    cell.addEventListener('mouseleave',()=>tt.style.opacity='0');
+  });
+}
+
+function renderTimeline(){
+  const dc={};
+  allBumps.forEach(b=>{const d=b.datetime.slice(0,10);dc[d]=(dc[d]||0)+1;});
+  const s=Object.entries(dc).sort((a,b)=>a[0].localeCompare(b[0]));
+  new Chart(document.getElementById('chartTimeline'),{type:'line',data:{labels:s.map(([d])=>d),datasets:[{data:s.map(([,v])=>v),borderColor:'#5865f2',backgroundColor:'rgba(88,101,242,.08)',fill:true,tension:.4,pointRadius:s.length>60?0:3,pointBackgroundColor:'#5865f2',borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:GRD},ticks:{color:TCK,font:{size:9},maxTicksLimit:12,maxRotation:45},border:{color:'transparent'}},y:{grid:{color:GRD},ticks:{color:TCK},border:{color:'transparent'}}}}});
+}
+
+function renderProfiles(){
+  const users=countByUser();
+  const DAY=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  document.getElementById('profiles').innerHTML=users.slice(0,20).map(([name,total],idx)=>{
+    const ub=allBumps.filter(b=>b.username===name);
+    const hours=Array(24).fill(0),days=Array(7).fill(0),dm={};
+    ub.forEach(b=>{const d=new Date(b.datetime);hours[d.getHours()]++;days[d.getDay()]++;const k=b.datetime.slice(0,10);dm[k]=(dm[k]||0)+1;});
+    const pH=hours.indexOf(Math.max(...hours));
+    const mH=Math.max(...hours)||1;
+    const mD=Math.max(...days);
+    const ud=Object.keys(dm).length;
+    const pct=((total/allBumps.length)*100).toFixed(1);
+    const ac=ACCENT_HEX[idx%10];
+    return`<div class="profile-card">
+      <div class="profile-header">
+        <div class="dc-avatar ${AVATAR_CLS[idx%10]}">${name.slice(0,2).toUpperCase()}</div>
+        <div>
+          <div class="profile-name">${name}</div>
+          <div class="profile-sub">${total} bumps · ${pct}% do total</div>
+        </div>
+      </div>
+      <div class="profile-stats">
+        <div class="pstat"><span class="pv" style="color:${ac}">${total}</span><span class="pk">bumps</span></div>
+        <div class="pstat"><span class="pv">${ud}</span><span class="pk">dias</span></div>
+        <div class="pstat"><span class="pv">${pH}h</span><span class="pk">pico</span></div>
+      </div>
+      <div class="ph-label">Atividade por hora</div>
+      <div class="hours-bars">${hours.map((v,h)=>`<div class="h-bar" title="${h}h: ${v} bumps" style="height:${Math.max(Math.round((v/mH)*100),v>0?8:2)}%;background:${ac};opacity:${v===0?.1:.35+(v/mH)*.65}"></div>`).join('')}</div>
+      <div class="day-pills">${DAY.map((d,i)=>{const cls2=days[i]===mD&&mD>0?'peak':days[i]>0?'active':'';return`<div class="day-pill ${cls2}" title="${d}: ${days[i]} bumps">${d}</div>`;}).join('')}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderGenStats(){
+  const dc={};
+  allBumps.forEach(b=>{const d=b.datetime.slice(0,10);dc[d]=(dc[d]||0)+1;});
+  const sd=Object.entries(dc).sort((a,b)=>b[1]-a[1]);
+  const avg=(allBumps.length/Math.max(Object.keys(dc).length,1)).toFixed(1);
+  const hours=Array(24).fill(0),days=Array(7).fill(0),months={};
+  allBumps.forEach(b=>{const d=new Date(b.datetime);hours[d.getHours()]++;days[d.getDay()]++;const mk=b.datetime.slice(0,7);months[mk]=(months[mk]||0)+1;});
+  const pH=hours.indexOf(Math.max(...hours));
+  const qH=hours.indexOf(Math.min(...hours));
+  const DN=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+  const pD=DN[days.indexOf(Math.max(...days))];
+  const qD=DN[days.indexOf(Math.min(...days))];
+  const sm=Object.entries(months).sort((a,b)=>b[1]-a[1]);
+  const users=countByUser();
+  const solo=users.filter(([,c])=>c===1).length;
+  const streak=calcStreak(dc);
+  const top3=((users.slice(0,3).reduce((s,[,c])=>s+c,0)/allBumps.length)*100).toFixed(1);
+  document.getElementById('gen-stats').innerHTML=`
+    <div class="gen-card"><h4>Dias mais ativos</h4>${sd.slice(0,5).map(([d,c],i)=>`<div class="stat-row"><span class="sk">${i+1}. ${d}</span><span class="sv g">${c} bumps</span></div>`).join('')}</div>
+    <div class="gen-card"><h4>Dias menos ativos</h4>${sd.slice(-5).reverse().map(([d,c],i)=>`<div class="stat-row"><span class="sk">${i+1}. ${d}</span><span class="sv w">${c} bumps</span></div>`).join('')}</div>
+    <div class="gen-card"><h4>Horários e dias</h4>
+      <div class="stat-row"><span class="sk">Horário de pico</span><span class="sv g">${pH}h (${hours[pH]})</span></div>
+      <div class="stat-row"><span class="sk">Horário mais quieto</span><span class="sv">${qH}h (${hours[qH]})</span></div>
+      <div class="stat-row"><span class="sk">Dia mais ativo</span><span class="sv g">${pD}</span></div>
+      <div class="stat-row"><span class="sk">Dia mais quieto</span><span class="sv w">${qD}</span></div>
+      <div class="stat-row"><span class="sk">Média por dia</span><span class="sv">${avg}</span></div>
+    </div>
+    <div class="gen-card"><h4>Meses mais ativos</h4>${sm.slice(0,5).map(([m,c],i)=>`<div class="stat-row"><span class="sk">${i+1}. ${m}</span><span class="sv g">${c} bumps</span></div>`).join('')}</div>
+    <div class="gen-card"><h4>Engajamento</h4>
+      <div class="stat-row"><span class="sk">Maior sequência</span><span class="sv g">${streak.longest} dias</span></div>
+      <div class="stat-row"><span class="sk">Sequência atual</span><span class="sv">${streak.current} dias</span></div>
+      <div class="stat-row"><span class="sk">Usuários únicos</span><span class="sv">${users.length}</span></div>
+      <div class="stat-row"><span class="sk">Com 1 bump só</span><span class="sv w">${solo}</span></div>
+      <div class="stat-row"><span class="sk">Top 3 responsáveis por</span><span class="sv g">${top3}%</span></div>
+    </div>`;
+}
+
+function calcStreak(dc){
+  const s=Object.keys(dc).sort();
+  if(!s.length)return{longest:0,current:0};
+  let l=1,c=1,prev=new Date(s[0]);
+  for(let i=1;i<s.length;i++){const d=new Date(s[i]);if((d-prev)/86400000===1){c++;l=Math.max(l,c);}else c=1;prev=d;}
+  const today=new Date();today.setHours(0,0,0,0);
+  const last=new Date(s[s.length-1]);
+  return{longest:l,current:(today-last)/86400000<=1?c:0};
+}
+</script>
+</body>
+</html>
