@@ -297,53 +297,51 @@ function dedup(bumps){
   return bumps.filter(b=>{const k=b.username+'|'+b.datetime;if(seen.has(k))return false;seen.add(k);return true;});
 }
 
-// Configuração
-const PASTA_JSON = 'json/'; 
+// CONFIGURAÇÃO REPOSITÓRIO
+const USER = 'Ktsiu';
+const REPO = 'Omigols-Bumpers';
+const PATH = 'json';
 
 async function iniciarDashboard() {
     allBumps = [];
     
     try {
-        // 1. Tenta ler o índice da pasta (Funciona se o servidor local tiver "Directory Listing" ativo)
-        const response = await fetch(PASTA_JSON);
-        const html = await response.text();
+        // 1. Usa a API do GitHub para listar os arquivos na pasta /json
+        const apiUrl = `https://api.github.com/repos/${USER}/${REPO}/contents/${PATH}`;
+        const response = await fetch(apiUrl);
         
-        // Expressão regular para encontrar links de arquivos .json no HTML da pasta
-        const regex = /href="([^"]*\.json)"/g;
-        let match;
-        const arquivos = [];
+        if (!response.ok) throw new Error("Não foi possível listar a pasta via API.");
         
-        while ((match = regex.exec(html)) !== null) {
-            arquivos.push(match[1]);
-        }
+        const files = await response.json();
+        
+        // 2. Filtra apenas arquivos .json
+        const jsonFiles = files.filter(f => f.name.endsWith('.json'));
 
-        if (arquivos.length === 0) {
-            throw new Error("Nenhum arquivo .json encontrado na pasta.");
-        }
-
-        // 2. Carrega cada arquivo encontrado
-        for (const arquivo of arquivos) {
-            const res = await fetch(PASTA_JSON + arquivo);
+        // 3. Carrega o conteúdo de cada arquivo
+        for (const file of jsonFiles) {
+            // Usamos download_url para pegar o JSON puro
+            const res = await fetch(file.download_url);
             const data = await res.json();
+            
             if (data.bumps) {
                 allBumps = allBumps.concat(data.bumps);
             }
         }
 
-        // 3. Processa e exibe
         if (allBumps.length > 0) {
             buildDashboardAutomatico();
+        } else {
+            alert("Nenhum dado encontrado nos arquivos JSON.");
         }
 
     } catch (err) {
-        console.error("Erro ao carregar arquivos automaticamente:", err);
-        alert("Erro: Certifique-se de que está usando um servidor local (Live Server) e que a pasta /json existe.");
+        console.error("Erro GitHub API:", err);
+        alert("Erro ao carregar do GitHub. Verifique se o repositório é público.");
     }
 }
 
 function buildDashboardAutomatico() {
     allBumps = dedup(allBumps).sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
-    
     document.getElementById('upload-screen').style.display = 'none';
     document.getElementById('dashboard').style.display = 'block';
     
@@ -351,7 +349,6 @@ function buildDashboardAutomatico() {
     renderHeatmap(); renderTimeline(); renderProfiles(); renderGenStats();
 }
 
-// Inicia assim que a página abrir
 window.onload = iniciarDashboard;
 
 function resetDashboard(){
