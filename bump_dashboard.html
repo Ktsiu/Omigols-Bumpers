@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -296,13 +297,62 @@ function dedup(bumps){
   return bumps.filter(b=>{const k=b.username+'|'+b.datetime;if(seen.has(k))return false;seen.add(k);return true;});
 }
 
-function buildDashboard(){
-  allBumps=dedup([...(loadedFiles[0]||[]),...(loadedFiles[1]||[])]).sort((a,b)=>new Date(a.datetime)-new Date(b.datetime));
-  document.getElementById('upload-screen').style.display='none';
-  document.getElementById('dashboard').style.display='block';
-  renderMetrics(); renderRanking(); renderHourChart(); renderDayChart();
-  renderHeatmap(); renderTimeline(); renderProfiles(); renderGenStats();
+// Configuração
+const PASTA_JSON = 'json/'; 
+
+async function iniciarDashboard() {
+    allBumps = [];
+    
+    try {
+        // 1. Tenta ler o índice da pasta (Funciona se o servidor local tiver "Directory Listing" ativo)
+        const response = await fetch(PASTA_JSON);
+        const html = await response.text();
+        
+        // Expressão regular para encontrar links de arquivos .json no HTML da pasta
+        const regex = /href="([^"]*\.json)"/g;
+        let match;
+        const arquivos = [];
+        
+        while ((match = regex.exec(html)) !== null) {
+            arquivos.push(match[1]);
+        }
+
+        if (arquivos.length === 0) {
+            throw new Error("Nenhum arquivo .json encontrado na pasta.");
+        }
+
+        // 2. Carrega cada arquivo encontrado
+        for (const arquivo of arquivos) {
+            const res = await fetch(PASTA_JSON + arquivo);
+            const data = await res.json();
+            if (data.bumps) {
+                allBumps = allBumps.concat(data.bumps);
+            }
+        }
+
+        // 3. Processa e exibe
+        if (allBumps.length > 0) {
+            buildDashboardAutomatico();
+        }
+
+    } catch (err) {
+        console.error("Erro ao carregar arquivos automaticamente:", err);
+        alert("Erro: Certifique-se de que está usando um servidor local (Live Server) e que a pasta /json existe.");
+    }
 }
+
+function buildDashboardAutomatico() {
+    allBumps = dedup(allBumps).sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+    
+    document.getElementById('upload-screen').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    
+    renderMetrics(); renderRanking(); renderHourChart(); renderDayChart();
+    renderHeatmap(); renderTimeline(); renderProfiles(); renderGenStats();
+}
+
+// Inicia assim que a página abrir
+window.onload = iniciarDashboard;
 
 function resetDashboard(){
   allBumps=[]; loadedFiles=[null,null];
