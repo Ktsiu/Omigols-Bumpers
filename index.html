@@ -294,23 +294,40 @@ function loadFile(idx,file){
 
 function dedup(bumps) {
   const map = new Map();
+  // Primeiro, vamos criar um mapa de "quem é quem" baseado no tempo
+  // para descobrir quais nomes pertencem à mesma pessoa
+  const nameLinks = {};
 
   bumps.forEach(b => {
-    const time = b.datetime;
-    if (map.has(time)) {
-      // Se o tempo já existe, pegamos o registro existente
-      let existing = map.get(time);
-      // Se o nome for diferente, concatena (ex: "User1 / User2")
-      if (existing.username !== b.username && !existing.username.includes(b.username)) {
-        existing.username += " / " + b.username;
+    if (map.has(b.datetime)) {
+      const existingName = map.get(b.datetime).username;
+      if (existingName !== b.username) {
+        // Se o mesmo tempo tem nomes diferentes, o nome B é o mesmo que o nome A
+        nameLinks[b.username] = existingName;
       }
     } else {
-      // Se é um tempo novo, cria uma cópia para não alterar o original por referência
-      map.set(time, { ...b });
+      map.set(b.datetime, b);
     }
   });
 
-  return Array.from(map.values());
+  // Retornamos os bumps únicos
+  return Array.from(map.values()).map(b => {
+    // Se o nome do usuário tem um "link" para um nome anterior, usamos o nome original
+    let finalName = b.username;
+    while (nameLinks[finalName]) {
+      finalName = nameLinks[finalName];
+    }
+    return { ...b, username: finalName };
+  });
+}
+
+function countByUser() {
+  const m = {};
+  allBumps.forEach(b => {
+    // Aqui garantimos que nomes parecidos ou vinculados caiam na mesma contagem
+    m[b.username] = (m[b.username] || 0) + 1;
+  });
+  return Object.entries(m).sort((a, b) => b[1] - a[1]);
 }
 
 // Atualize também a função de início para garantir a ordem cronológica antes de qualquer coisa
@@ -412,12 +429,6 @@ function resetDashboard(){
   document.getElementById('go-btn').disabled=true;
   document.getElementById('file1').value='';
   document.getElementById('file2').value='';
-}
-
-function countByUser(){
-  const m={};
-  allBumps.forEach(b=>{m[b.username]=(m[b.username]||0)+1;});
-  return Object.entries(m).sort((a,b)=>b[1]-a[1]);
 }
 
 function renderMetrics(){
