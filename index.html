@@ -292,9 +292,60 @@ function loadFile(idx,file){
   z.addEventListener('drop',e=>{e.preventDefault();z.classList.remove('drag-over');if(e.dataTransfer.files[0])loadFile(i,e.dataTransfer.files[0]);});
 });
 
-function dedup(bumps){
-  const seen=new Set();
-  return bumps.filter(b=>{const k=b.username+'|'+b.datetime;if(seen.has(k))return false;seen.add(k);return true;});
+function dedup(bumps) {
+  const map = new Map();
+
+  bumps.forEach(b => {
+    const time = b.datetime;
+    if (map.has(time)) {
+      // Se o tempo já existe, pegamos o registro existente
+      let existing = map.get(time);
+      // Se o nome for diferente, concatena (ex: "User1 / User2")
+      if (existing.username !== b.username && !existing.username.includes(b.username)) {
+        existing.username += " / " + b.username;
+      }
+    } else {
+      // Se é um tempo novo, cria uma cópia para não alterar o original por referência
+      map.set(time, { ...b });
+    }
+  });
+
+  return Array.from(map.values());
+}
+
+// Atualize também a função de início para garantir a ordem cronológica antes de qualquer coisa
+async function iniciarDashboard() {
+    allBumps = [];
+    
+    try {
+        const apiUrl = `https://api.github.com/repos/${USER}/${REPO}/contents/${PATH}`;
+        const response = await fetch(apiUrl);
+        if (!response.ok) throw new Error("Não foi possível listar a pasta.");
+        
+        const files = await response.json();
+        const jsonFiles = files.filter(f => f.name.endsWith('.json'));
+
+        for (const file of jsonFiles) {
+            const res = await fetch(file.download_url);
+            const data = await res.json();
+            if (data.bumps) {
+                allBumps = allBumps.concat(data.bumps);
+            }
+        }
+
+        if (allBumps.length > 0) {
+            // Primeiro removemos duplicatas pelo tempo e unificamos nomes
+            allBumps = dedup(allBumps);
+            // Depois ordenamos
+            allBumps.sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+            
+            buildDashboardAutomatico();
+        } else {
+            alert("Nenhum dado encontrado.");
+        }
+    } catch (err) {
+        console.error("Erro GitHub API:", err);
+    }
 }
 
 // CONFIGURAÇÃO REPOSITÓRIO
